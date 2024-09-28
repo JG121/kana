@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NextTube - Your Playlist</title>
+    <style>
+        :root {
+            --primary-color: #0070f3;
+            --background-color: #fafafa;
+            --text-color: #333;
+            --card-background: #fff;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        header {
+            background-color: var(--card-background);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 1rem 0;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            text-align: center;
+            margin: 0;
+        }
+
+        #video-player-container {
+            margin: 2rem auto;
+            max-width: 800px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #video-player {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+        }
+
+        #controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background-color: var(--card-background);
+            flex-wrap: wrap;
+        }
+
+        #episode-select {
+            padding: 0.5rem;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            margin-right: 0.5rem;
+        }
+
+        #episode-input {
+            width: 50px;
+            padding: 0.5rem;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            margin-right: 0.5rem;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 0.5rem;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        #playlist-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            padding: 1rem;
+        }
+
+        .video-item {
+            background-color: var(--card-background);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+
+        .video-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .video-thumbnail {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            object-fit: cover;
+        }
+
+        .video-info {
+            padding: 1rem;
+        }
+
+        .video-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .video-channel {
+            font-size: 0.875rem;
+            color: #666;
+        }
+
+        .video-duration {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 0.5rem;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            margin-right: 0.5rem;
+        }
+
+        .checkbox-container input {
+            margin-right: 5px;
+        }
+
+        .play-button-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        #play-button {
+            font-size: 1.5em;
+            padding: 10px 20px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>NextTube</h1>
+        </div>
+    </header>
+
+    <main class="container">
+        <div id="video-player-container">
+            <div id="play-button-overlay" class="play-button-overlay">
+                <button id="play-button">Play</button>
+            </div>
+            <iframe id="video-player" src="" frameborder="0" allowfullscreen></iframe>
+            <div id="controls">
+                <select id="episode-select">
+                    <option value="">Select Episode</option>
+                </select>
+                <input type="number" id="episode-input" min="1" placeholder="Ep #">
+                <button id="go-button">Go</button>
+                <button id="prev-button">Previous</button>
+                <button id="next-button">Next</button>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="auto-next" checked>
+                    <label for="auto-next">Auto Next</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="autoplay" checked>
+                    <label for="autoplay">Autoplay</label>
+                </div>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="skip-intro" checked>
+                    <label for="skip-intro">Skip Intro</label>
+                </div>
+            </div>
+        </div>
+        <div id="playlist-container"></div>
+    </main>
+
+    <script>
+        const playlistContainer = document.getElementById('playlist-container');
+        const videoPlayer = document.getElementById('video-player');
+        const episodeSelect = document.getElementById('episode-select');
+        const episodeInput = document.getElementById('episode-input');
+        const goButton = document.getElementById('go-button');
+        const prevButton = document.getElementById('prev-button');
+        const nextButton = document.getElementById('next-button');
+        const autoNextCheckbox = document.getElementById('auto-next');
+        const autoplayCheckbox = document.getElementById('autoplay');
+        const skipIntroCheckbox = document.getElementById('skip-intro');
+        const playButton = document.getElementById('play-button');
+        const playButtonOverlay = document.getElementById('play-button-overlay');
+
+        let videos = [];
+        let currentVideoIndex = 0;
+        let episodeMap = new Map();
+        let checkInterval;
+
+        async function getPlaylistData() {
+            const response = await fetch('playlist_info.json');
+            return await response.json();
+        }
+
+        function extractEpisodeNumber(title) {
+            const match = title.match(/\d+/g);
+            return match ? parseInt(match[match.length - 1]) : null;
+        }
+
+        function createVideoElement(video, index) {
+            const videoItem = document.createElement('div');
+            videoItem.className = 'video-item';
+            
+            videoItem.innerHTML = `
+                <img class="video-thumbnail" src="${video.thumbnail}" alt="${video.title}">
+                <div class="video-info">
+                    <div class="video-title">${video.title}</div>
+                    <div class="video-channel">${video.channel}</div>
+                    <div class="video-duration">${formatDuration(video.duration)}</div>
+                </div>
+            `;
+            
+            videoItem.addEventListener('click', () => playVideo(index));
+            
+            return videoItem;
+        }
+
+        function playVideo(index) {
+            currentVideoIndex = index;
+            const video = videos[index];
+            const videoId = video.videoUrl.split('v=')[1];
+            const autoplay = autoplayCheckbox.checked ? 1 : 0;
+            const skipIntro = skipIntroCheckbox.checked ? 27 : 0;
+            const embedUrl = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=${autoplay}&start=${skipIntro}`;
+            videoPlayer.src = embedUrl;
+            episodeSelect.value = index;
+
+            if (autoplay) {
+                playButtonOverlay.style.display = 'none';
+            } else {
+                playButtonOverlay.style.display = 'flex';
+            }
+
+            // Ensure the video is unmuted
+            setTimeout(() => {
+                videoPlayer.contentWindow.postMessage('{"event":"command","func":"unMute","args":""}', '*');
+                videoPlayer.contentWindow.postMessage('{"event":"command","func":"setVolume","args":[100]}', '*');
+            }, 1000);
+
+            startVideoProgressCheck();
+        }
+
+        function startVideoProgressCheck() {
+            if (checkInterval) {
+                clearInterval(checkInterval);
+            }
+
+            checkInterval = setInterval(() => {
+                videoPlayer.contentWindow.postMessage('{"event":"listening"}', '*');
+            }, 1000);
+        }
+
+        function findNextEpisode(currentEpisodeNumber) {
+            let nextEpisodeNumber = currentEpisodeNumber + 1;
+            while (nextEpisodeNumber <= Math.max(...episodeMap.keys())) {
+                if (episodeMap.has(nextEpisodeNumber)) {
+                    return episodeMap.get(nextEpisodeNumber);
+                }
+                nextEpisodeNumber++;
+            }
+            return null;
+        }
+
+        function formatDuration(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+
+        function populateEpisodeSelect() {
+            videos.forEach((video, index) => {
+                const episodeNumber = extractEpisodeNumber(video.title);
+                if (episodeNumber !== null) {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = `Episode ${episodeNumber}: ${video.title}`;
+                    episodeSelect.appendChild(option);
+                    episodeMap.set(episodeNumber, index);
+                }
+            });
+        }
+
+        function setupEventListeners() {
+            episodeSelect.addEventListener('change', () => {
+                const selectedIndex = parseInt(episodeSelect.value);
+                if (!isNaN(selectedIndex)) {
+                    playVideo(selectedIndex);
+                }
+            });
+
+            goButton.addEventListener('click', () => {
+                const episodeNumber = parseInt(episodeInput.value);
+                if (episodeMap.has(episodeNumber)) {
+                    playVideo(episodeMap.get(episodeNumber));
+                }
+            });
+
+            prevButton.addEventListener('click', () => {
+                const currentEpisodeNumber = extractEpisodeNumber(videos[currentVideoIndex].title);
+                if (currentEpisodeNumber > 1 && episodeMap.has(currentEpisodeNumber - 1)) {
+                    playVideo(episodeMap.get(currentEpisodeNumber - 1));
+                }
+            });
+
+            nextButton.addEventListener('click', () => {
+                const currentEpisodeNumber = extractEpisodeNumber(videos[currentVideoIndex].title);
+                if (episodeMap.has(currentEpisodeNumber + 1)) {
+                    playVideo(episodeMap.get(currentEpisodeNumber + 1));
+                }
+            });
+
+            playButton.addEventListener('click', () => {
+                videoPlayer.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+                playButtonOverlay.style.display = 'none';
+            });
+
+            window.addEventListener('message', (event) => {
+                if (event.origin !== "https://www.youtube.com") return;
+                
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.event === "onStateChange") {
+                        if (data.info === 1) {
+                            // Video is playing
+                            playButtonOverlay.style.display = 'none';
+                        } else if (data.info === 2 || data.info === 0) {
+                            // Video is paused or ended
+                            playButtonOverlay.style.display = 'flex';
+                        }
+                    } else if (data.event === "infoDelivery" && data.info && data.info.currentTime) {
+                        const currentTime = data.info.currentTime;
+                        const duration = data.info.duration;
+                        
+                        if (duration - currentTime <= 3 && autoNextCheckbox.checked) {
+                            // Video is in the last 3 seconds
+                            const currentEpisodeNumber = extractEpisodeNumber(videos[currentVideoIndex].title);
+                            const nextVideoIndex = findNextEpisode(currentEpisodeNumber);
+                            if (nextVideoIndex !== null) {
+                                playVideo(nextVideoIndex);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error parsing message data:", error);
+                }
+            });
+        }
+
+        getPlaylistData().then(data => {
+            videos = data;
+            videos.forEach((video, index) => {
+                const videoElement = createVideoElement(video, index);
+                playlistContainer.appendChild(videoElement);
+                
+                const episodeNumber = extractEpisodeNumber(video.title);
+                if (episodeNumber !== null) {
+                    episodeMap.set(episodeNumber, index);
+                }
+            });
+            populateEpisodeSelect();
+            setupEventListeners();
+            if (videos.length > 0) {
+                playVideo(0);
+            }
+        });
+    </script>
+</body>
+</html>
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My YouTube Playlist</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            text-align: center;
+            color: #c4302b;
+        }
+        #playlist-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+        .video-item {
+            width: 300px;
+            margin: 10px;
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .video-item:hover {
+            transform: scale(1.05);
+        }
+        .video-thumbnail {
+            width: 100%;
+            height: 168px;
+            object-fit: cover;
+        }
+        .video-info {
+            padding: 10px;
+        }
+        .video-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .video-channel {
+            color: #606060;
+            font-size: 0.9em;
+        }
+        .video-duration {
+            color: #606060;
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
+        #video-player-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: black;
+        }
+        #video-player {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+        }
+    </style>
+</head>
+<body>
+    <h1>My YouTube Playlist</h1>
+    <div id="video-player-container">
+        <iframe id="video-player" src="" frameborder="0" allowfullscreen></iframe>
+    </div>
+    <div id="playlist-container"></div>
+
+    <script>
+        const playlistContainer = document.getElementById('playlist-container');
+        const videoPlayer = document.getElementById('video-player');
+
+        async function getPlaylistData() {
+            const response = await fetch('playlist_info.json');
+            return await response.json();
+        }
+
+        function createVideoElement(video) {
+            const videoItem = document.createElement('div');
+            videoItem.className = 'video-item';
+            
+            videoItem.innerHTML = `
+                <img class="video-thumbnail" src="${video.thumbnail}" alt="${video.title}">
+                <div class="video-info">
+                    <div class="video-title">${video.title}</div>
+                    <div class="video-channel">${video.channel}</div>
+                    <div class="video-duration">${formatDuration(video.duration)}</div>
+                </div>
+            `;
+            
+            videoItem.addEventListener('click', () => playVideo(video.videoUrl));
+            
+            return videoItem;
+        }
+
+        function playVideo(videoUrl) {
+            const videoId = videoUrl.split('v=')[1];
+            const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+            videoPlayer.src = embedUrl;
+        }
+
+        function formatDuration(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = seconds % 60;
+            return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+
+        getPlaylistData().then(videos => {
+            videos.forEach(video => {
+                const videoElement = createVideoElement(video);
+                playlistContainer.appendChild(videoElement);
+            });
+        });
+    </script>
+</body>
+</html>
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My YouTube Playlist</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        h1 {
+            text-align: center;
+            color: #c4302b;
+        }
+        #playlist-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+        .video-item {
+            width: 300px;
+            margin: 10px;
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .video-thumbnail {
+            width: 100%;
+            height: 168px;
+            object-fit: cover;
+        }
+        .video-info {
+            padding: 10px;
+        }
+        .video-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .video-channel {
+            color: #606060;
+            font-size: 0.9em;
+        }
+        #video-player {
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: black;
+        }
+        video {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>My YouTube Playlist</h1>
+    <div id="video-player">
+        <video id="custom-player" controls>
+            <source src="" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+    <div id="playlist-container"></div>
+
+    <script>
+        // JavaScript code will go here
+    </script>
+</body>
+</html> --> -->
